@@ -17,9 +17,11 @@ app.use(
 	cors({
 		origin: [
 			process.env.FRONTEND_URL,
-			'https://king-kebab-front-end.vercel.app/',
+			'https://king-kebab-front-end.vercel.app',
 		],
 		credentials: true,
+		methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+		allowedHeaders: ['Content-Type', 'Authorization'],
 	})
 )
 
