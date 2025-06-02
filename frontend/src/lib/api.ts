@@ -60,23 +60,13 @@ export async function addTimeEntry(
 	const token = localStorage.getItem('token')
 	if (!token) throw new Error('No token found')
 
-	console.log('Sending data:', {
-		...data,
-		startTime: `${data.date}T${data.startTime}:00`,
-		endTime: `${data.date}T${data.endTime}:00`,
-	})
-
 	const response = await fetch(`${API_URL}/time`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
 			Authorization: `Bearer ${token}`,
 		},
-		body: JSON.stringify({
-			...data,
-			startTime: `${data.date}T${data.startTime}:00`,
-			endTime: `${data.date}T${data.endTime}:00`,
-		}),
+		body: JSON.stringify(data),
 	})
 
 	return handleResponse<TimeEntry>(response)
@@ -185,6 +175,47 @@ export async function downloadMyPDF(month: number, year: number) {
 	a.click()
 	window.URL.revokeObjectURL(url)
 	document.body.removeChild(a)
+}
+
+export async function deleteTimeEntry(entryId: string): Promise<void> {
+	const token = localStorage.getItem('token')
+	if (!token) throw new Error('No token found')
+
+	const response = await fetch(`${API_URL}/time/${entryId}`, {
+		method: 'DELETE',
+		headers: {
+			Authorization: `Bearer ${token}`,
+		},
+	})
+
+	if (!response.ok) {
+		throw new Error("O'chirishda xatolik yuz berdi")
+	}
+}
+
+export async function updateTimeEntry(
+	entryId: string,
+	data: {
+		startTime: string
+		endTime: string
+		date: string
+		description: string
+		breakMinutes: number
+	}
+): Promise<TimeEntry> {
+	const token = localStorage.getItem('token')
+	if (!token) throw new Error('No token found')
+
+	const response = await fetch(`${API_URL}/time/${entryId}`, {
+		method: 'PUT',
+		headers: {
+			'Content-Type': 'application/json',
+			Authorization: `Bearer ${token}`,
+		},
+		body: JSON.stringify(data),
+	})
+
+	return handleResponse<TimeEntry>(response)
 }
 
 // Logout funksiyasini qo'shamiz
