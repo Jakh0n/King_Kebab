@@ -16,13 +16,12 @@ app.use(helmet())
 app.use(express.json())
 
 // CORS configuration
-const allowedOrigins = process.env.FRONTEND_URL
-	? [process.env.FRONTEND_URL, 'http://localhost:3000']
-	: ['http://localhost:3000']
-
 app.use(
 	cors({
-		origin: allowedOrigins,
+		origin: [
+			'https://king-kebab-front-end.vercel.app',
+			'http://localhost:3000',
+		],
 		credentials: true,
 		methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
 		allowedHeaders: ['Content-Type', 'Authorization'],
