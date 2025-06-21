@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { login } from '@/lib/api'
+import { login, logout } from '@/lib/api'
 import { Loader2 } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -22,6 +22,9 @@ export default function LoginPage() {
 		e.preventDefault()
 		setIsLoading(true)
 		setError('')
+
+		// Avvalgi barcha ma'lumotlarni tozalash
+		logout()
 
 		try {
 			if (!username || !password) {
@@ -80,7 +83,7 @@ export default function LoginPage() {
 			<Card className='w-full max-w-md'>
 				<CardHeader>
 					<Image
-						src='/cropped-kinglogo.avif'
+						src='/image.png'
 						alt='King Kebab Logo'
 						className='w-24 h-24 object-contain mb-4 mx-auto'
 						width={100}
