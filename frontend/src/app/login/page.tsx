@@ -74,6 +74,8 @@ export default function LoginPage() {
 
 			if (payload.isAdmin) {
 				router.push('/admin')
+			} else if (response.position === 'rider') {
+				router.push('/monthly-dashboard')
 			} else {
 				router.push('/dashboard')
 			}

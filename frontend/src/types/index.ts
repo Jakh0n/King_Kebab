@@ -6,6 +6,8 @@ export interface User {
 	phone?: string
 	bio?: string
 	position: string
+	jobType?: 'worker' | 'rider' // Job function: kitchen worker or delivery rider
+	paymentType?: 'hourly' | 'monthly' // Payment structure: hourly wages or monthly salary
 	employeeId: string
 	department?: string
 	salary?: number
