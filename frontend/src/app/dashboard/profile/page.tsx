@@ -31,7 +31,6 @@ import {
 	Calendar,
 	Camera,
 	Clock,
-	Image as ImageIcon,
 	Mail,
 	MapPin,
 	Pencil,
@@ -61,7 +60,6 @@ export default function UserProfile() {
 	const [isEditing, setIsEditing] = useState(false)
 	const [uploading, setUploading] = useState(false)
 	const fileInputRef = useRef<HTMLInputElement>(null)
-	const cameraInputRef = useRef<HTMLInputElement>(null)
 	const [stats, setStats] = useState<ProfileStats>({
 		totalHours: 0,
 		totalDays: 0,
@@ -129,20 +127,13 @@ export default function UserProfile() {
 				console.log('Base64 image saved to localStorage')
 			}
 
-			toast.success('Photo uploaded successfully! 📸', {
-				description: 'Your profile picture has been updated.',
-				duration: 3000,
-			})
+			toast.success('Profile image uploaded successfully! (Local storage)')
 			setUploading(false)
 		}
 
 		reader.onerror = () => {
 			console.error('Failed to read file')
-			toast.error('Upload failed!', {
-				description:
-					'There was an error processing your image. Please try again.',
-				duration: 4000,
-			})
+			toast.error('Failed to process image')
 			setUploading(false)
 		}
 
@@ -354,46 +345,25 @@ export default function UserProfile() {
 			type: file.type,
 		})
 
-		// Show immediate feedback to user
-		toast.info('Processing image...', {
-			description: 'Please wait while we prepare your photo.',
-			duration: 2000,
-		})
-
 		// Validate file size (2MB limit for base64 storage)
 		if (file.size > 2 * 1024 * 1024) {
-			toast.error('File too large!', {
-				description: 'Please select an image smaller than 2MB.',
-				duration: 4000,
-			})
+			toast.error('File size must be less than 2MB')
 			return
 		}
 
 		// Validate file type
 		if (!file.type.startsWith('image/')) {
-			toast.error('Invalid file type!', {
-				description: 'Please select a valid image file (JPG, PNG, GIF).',
-				duration: 4000,
-			})
+			toast.error('Please select an image file')
 			return
 		}
 
 		// Use base64 method directly for now (avoiding UploadThing configuration issues)
 		console.log('Using base64 upload method for mobile compatibility')
 		handleFallbackImageUpload(file)
-
-		// Clear the input so the same file can be selected again if needed
-		event.target.value = ''
 	}
 
-	// Mobile-friendly image upload trigger functions
-	const triggerCameraCapture = () => {
-		if (cameraInputRef.current) {
-			cameraInputRef.current.click()
-		}
-	}
-
-	const triggerGallerySelection = () => {
+	// Mobile-friendly image upload trigger
+	const triggerImageUpload = () => {
 		if (fileInputRef.current) {
 			fileInputRef.current.click()
 		}
@@ -920,71 +890,42 @@ export default function UserProfile() {
 														</div>
 													)}
 
-													{/* Hidden file inputs for different sources */}
+													{/* Hidden file input */}
 													<input
 														ref={fileInputRef}
 														type='file'
 														accept='image/*'
 														onChange={handleImageUpload}
 														className='hidden'
-														multiple={false}
-													/>
-													<input
-														ref={cameraInputRef}
-														type='file'
-														accept='image/*'
-														capture='environment'
-														onChange={handleImageUpload}
-														className='hidden'
-														multiple={false}
+														capture='environment' // Mobile camera preference
 													/>
 
 													{/* Mobile-friendly upload buttons */}
-													<div className='flex flex-col gap-3 w-full'>
-														<div className='flex flex-col sm:flex-row gap-3'>
-															<Button
-																type='button'
-																onClick={triggerCameraCapture}
-																disabled={uploading}
-																className='flex-1 bg-gradient-to-r from-blue-700 to-indigo-700 hover:from-indigo-700 hover:to-purple-700 text-white shadow-lg rounded-xl h-12 font-semibold transform hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed'
-															>
-																{uploading ? (
-																	<>
-																		<Upload className='w-4 h-4 mr-2 animate-spin' />
-																		Uploading...
-																	</>
-																) : (
-																	<>
-																		<Camera className='w-4 h-4 mr-2' />
-																		📸 Take Photo
-																	</>
-																)}
-															</Button>
-															<Button
-																type='button'
-																onClick={triggerGallerySelection}
-																disabled={uploading}
-																className='flex-1 bg-gradient-to-r from-purple-700 to-pink-700 hover:from-pink-700 hover:to-red-700 text-white shadow-lg rounded-xl h-12 font-semibold transform hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed'
-															>
-																{uploading ? (
-																	<>
-																		<Upload className='w-4 h-4 mr-2 animate-spin' />
-																		Uploading...
-																	</>
-																) : (
-																	<>
-																		<ImageIcon className='w-4 h-4 mr-2' />
-																		🖼️ Choose from Gallery
-																	</>
-																)}
-															</Button>
-														</div>
+													<div className='flex flex-col sm:flex-row gap-3 w-full'>
+														<Button
+															type='button'
+															onClick={triggerImageUpload}
+															disabled={uploading}
+															className='flex-1 bg-gradient-to-r from-blue-700 to-indigo-700 hover:from-indigo-700 hover:to-purple-700 text-white shadow-lg rounded-xl h-12 font-semibold transform hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed'
+														>
+															{uploading ? (
+																<>
+																	<Upload className='w-4 h-4 mr-2 animate-spin' />
+																	Uploading...
+																</>
+															) : (
+																<>
+																	<Camera className='w-4 h-4 mr-2' />
+																	Choose Photo
+																</>
+															)}
+														</Button>
 													</div>
 
 													<p className='text-xs text-blue-300/70 text-center'>
-														📸 Take a new photo or choose from your gallery
+														Maximum file size: 4MB
 														<br />
-														Maximum file size: 2MB • Supported: JPG, PNG, GIF
+														Supported formats: JPG, PNG, GIF
 													</p>
 												</div>
 											</div>
