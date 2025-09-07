@@ -1,7 +1,6 @@
 'use client'
 
 import { EditTimeEntryModal } from '@/components/EditTimeEntryModal'
-import { ServiceWorkerDebug } from '@/components/ServiceWorkerDebug'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import {
@@ -530,7 +529,12 @@ export default function DashboardPage() {
 											ID: {userData.employeeId || 'N/A'}
 										</span>
 										<span className='text-sm sm:text-base text-gray-400'>
-											- {userData.position === 'worker' ? 'Worker' : 'Rider'}
+											-{' '}
+											{userData.position === 'worker'
+												? 'Worker'
+												: userData.position === 'rider'
+												? 'Rider'
+												: 'Monthly'}
 										</span>
 									</div>
 								)}
@@ -1123,9 +1127,6 @@ export default function DashboardPage() {
 					entry={editingEntry}
 					onUpdate={handleEntryUpdate}
 				/>
-
-				{/* Service Worker Debug Component */}
-				<ServiceWorkerDebug />
 			</div>
 		</main>
 	)
