@@ -1,5 +1,13 @@
 'use client'
 
+// Extend Window interface for speech recognition
+declare global {
+	interface Window {
+		SpeechRecognition: unknown
+		webkitSpeechRecognition: unknown
+	}
+}
+
 import { EditTimeEntryModal } from '@/components/EditTimeEntryModal'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -16,7 +24,9 @@ import {
 	addTimeEntry,
 	deleteTimeEntry,
 	getMyTimeEntries,
+	getUserProfile,
 	logout,
+	updateUserProfile,
 } from '@/lib/api'
 import { notifyTimeEntry } from '@/lib/telegramNotifications'
 import { TimeEntry, TimeEntryFormData } from '@/types'
@@ -28,6 +38,8 @@ import {
 	Clock,
 	FileText,
 	LogOut,
+	Mic,
+	MicOff,
 	Pencil,
 	Sparkles,
 	Timer,
@@ -52,6 +64,7 @@ export default function DashboardPage() {
 		username: string
 		position: string
 		employeeId?: string
+		hourlyWage?: number
 	} | null>(null)
 	const [formData, setFormData] = useState<TimeEntryFormData>({
 		startTime: '',
@@ -70,6 +83,11 @@ export default function DashboardPage() {
 	}>({})
 	const [showBetaModal, setShowBetaModal] = useState(true)
 	const [currentPage, setCurrentPage] = useState(1)
+	const [isListening, setIsListening] = useState(false)
+	const [speechSupported, setSpeechSupported] = useState(false)
+	const [isWageModalOpen, setIsWageModalOpen] = useState(false)
+	const [hourlyWageInput, setHourlyWageInput] = useState('')
+	const [updatingWage, setUpdatingWage] = useState(false)
 
 	// Soatlarni hisoblash funksiyasi - backend bilan mos kelishi uchun
 	const calculateHours = useCallback(
@@ -160,6 +178,20 @@ export default function DashboardPage() {
 			position: payload.position,
 			employeeId: payload.employeeId,
 		})
+
+		// Load user profile to get hourly wage
+		const loadUserProfile = async () => {
+			try {
+				const profile = await getUserProfile()
+				setUserData(prev => ({
+					...prev!,
+					hourlyWage: profile.hourlyWage || 0,
+				}))
+			} catch (error) {
+				console.log('Could not load user profile:', error)
+			}
+		}
+		loadUserProfile()
 
 		loadEntries()
 	}, [router, loadEntries])
@@ -370,6 +402,193 @@ export default function DashboardPage() {
 		})
 	}, [])
 
+	// Speech recognition functions
+	useEffect(() => {
+		// Check if speech recognition is supported
+		if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+			setSpeechSupported(true)
+		}
+	}, [])
+
+	// Parse natural language time entry
+	const parseTimeEntry = useCallback((text: string) => {
+		const lowercaseText = text.toLowerCase()
+
+		// Enhanced time extraction - catches AM/PM variants and periods
+		const timeMatches = text.match(
+			/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.?m\.?|p\.?m\.?)?\b/gi
+		)
+
+		if (timeMatches && timeMatches.length >= 2) {
+			// Convert times to 24-hour format with better AM/PM logic
+			const convertTo24Hour = (time: string, isEndTime = false) => {
+				const match = time.match(
+					/(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.?m\.?|p\.?m\.?)?/i
+				)
+				if (!match) return ''
+
+				let hours = parseInt(match[1])
+				const minutes = match[2] ? parseInt(match[2]) : 0
+				const period = match[3]?.toLowerCase().replace(/\./g, '')
+
+				console.log(
+					`Parsing time: "${time}" -> hours: ${hours}, period: "${period}", isEndTime: ${isEndTime}`
+				)
+
+				// Handle AM/PM conversion
+				if (period === 'pm' && hours !== 12) {
+					hours += 12
+				} else if (period === 'am' && hours === 12) {
+					hours = 0
+				} else if (!period) {
+					// Smart defaults when AM/PM is missing
+					if (hours >= 1 && hours <= 7) {
+						// 1-7 could be AM or PM
+						if (isEndTime) {
+							// End times 1-7 are likely PM
+							hours += 12
+						}
+						// Start times 1-7 stay as AM
+					} else if (hours >= 8 && hours <= 11) {
+						// 8-11 without AM/PM
+						if (isEndTime) {
+							// End time 8-11 is likely PM
+							hours += 12
+						}
+						// Start time 8-11 is likely AM (keep as is)
+					}
+					// 12 stays as 12 (noon), 13+ already in 24h format
+				}
+
+				return `${hours.toString().padStart(2, '0')}:${minutes
+					.toString()
+					.padStart(2, '0')}`
+			}
+
+			const startTime = convertTo24Hour(timeMatches[0], false)
+			const endTime = convertTo24Hour(timeMatches[1], true)
+
+			// Additional validation: if end time seems before start time, try to fix it
+			const startHour = parseInt(startTime.split(':')[0])
+			const endHour = parseInt(endTime.split(':')[0])
+
+			console.log(
+				`Times parsed: start=${startTime} (${startHour}h), end=${endTime} (${endHour}h)`
+			)
+
+			return { startTime, endTime }
+		}
+
+		// If no specific times found, try to extract from common phrases
+		if (lowercaseText.includes('nine') || lowercaseText.includes('9')) {
+			const startTime = '09:00'
+			if (lowercaseText.includes('six') || lowercaseText.includes('6')) {
+				return { startTime, endTime: '18:00' }
+			}
+		}
+
+		return null
+	}, [])
+
+	// Start speech recognition
+	const startSpeechRecognition = useCallback(() => {
+		if (!speechSupported) {
+			toast.error('Speech recognition not supported in your browser')
+			return
+		}
+
+		// Type definitions for Speech Recognition API
+		interface SpeechRecognitionEvent {
+			results: {
+				[key: number]: {
+					[key: number]: {
+						transcript: string
+					}
+				}
+			}
+		}
+
+		interface SpeechRecognitionErrorEvent {
+			error: string
+		}
+
+		interface SpeechRecognitionConstructor {
+			new (): {
+				continuous: boolean
+				interimResults: boolean
+				lang: string
+				onstart: (() => void) | null
+				onresult: ((event: SpeechRecognitionEvent) => void) | null
+				onerror: ((event: SpeechRecognitionErrorEvent) => void) | null
+				onend: (() => void) | null
+				start: () => void
+			}
+		}
+
+		const SpeechRecognition = (window.SpeechRecognition ||
+			window.webkitSpeechRecognition) as SpeechRecognitionConstructor
+		const recognition = new SpeechRecognition()
+
+		recognition.continuous = false
+		recognition.interimResults = false
+		recognition.lang = 'en-US'
+
+		setIsListening(true)
+
+		recognition.onstart = () => {
+			toast.info('🎤 Listening...', {
+				description: 'Say something like "worked from 9 AM to 6 PM"',
+				duration: 3000,
+			})
+		}
+
+		recognition.onresult = (event: SpeechRecognitionEvent) => {
+			const transcript = event.results[0][0].transcript
+			console.log('Speech result:', transcript)
+
+			const parsedTime = parseTimeEntry(transcript)
+
+			if (parsedTime && parsedTime.startTime && parsedTime.endTime) {
+				setFormData(prev => ({
+					...prev,
+					startTime: parsedTime.startTime,
+					endTime: parsedTime.endTime,
+				}))
+
+				toast.success('✅ Voice recognized!', {
+					description: `Parsed: ${parsedTime.startTime} to ${parsedTime.endTime} (${transcript})`,
+					duration: 4000,
+				})
+			} else {
+				toast.warning('🤔 Could not understand time entry', {
+					description: `Said: "${transcript}" - Try: "worked from 9 AM to 6 PM" or "start 9 end 6"`,
+					duration: 5000,
+				})
+			}
+		}
+
+		recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+			console.error('Speech recognition error:', event.error)
+			toast.error('Speech recognition error', {
+				description:
+					event.error === 'no-speech'
+						? 'No speech detected'
+						: 'Please try again',
+			})
+		}
+
+		recognition.onend = () => {
+			setIsListening(false)
+		}
+
+		recognition.start()
+	}, [speechSupported, parseTimeEntry])
+
+	// Stop speech recognition
+	const stopSpeechRecognition = useCallback(() => {
+		setIsListening(false)
+	}, [])
+
 	// PDF yuklab olish funksiyasi
 	// async function handleDownloadPDF() {
 	// 	try {
@@ -430,6 +649,71 @@ export default function DashboardPage() {
 			totalPages: Math.ceil(allFilteredEntries.length / itemsPerPage),
 		}
 	}, [entries, selectedMonth, selectedYear, currentPage])
+
+	// Daromadni hisoblash
+	const totalEarnings = useMemo(() => {
+		if (!userData?.hourlyWage || userData.hourlyWage === 0) return 0
+
+		const filteredEntriesForMonth = entries.filter(entry => {
+			const entryDate = new Date(entry.date)
+			return (
+				entryDate.getMonth() + 1 === selectedMonth &&
+				entryDate.getFullYear() === selectedYear
+			)
+		})
+
+		const totalHours = filteredEntriesForMonth.reduce((sum, entry) => {
+			return sum + Number(entry.hours.toFixed(1))
+		}, 0)
+
+		return totalHours * userData.hourlyWage
+	}, [entries, selectedMonth, selectedYear, userData?.hourlyWage])
+
+	// Format number with commas for Korean Won
+	const formatKRW = (amount: number) => {
+		return new Intl.NumberFormat('ko-KR', {
+			style: 'currency',
+			currency: 'KRW',
+			minimumFractionDigits: 0,
+			maximumFractionDigits: 0,
+		}).format(amount)
+	}
+
+	// Soatlik ish haqqini yangilash
+	const handleUpdateWage = useCallback(async () => {
+		const wageValue = parseFloat(hourlyWageInput)
+		if (isNaN(wageValue) || wageValue < 0) {
+			toast.error("Iltimos, to'g'ri qiymat kiriting")
+			return
+		}
+
+		try {
+			setUpdatingWage(true)
+			const updatedProfile = await updateUserProfile({
+				hourlyWage: wageValue,
+			})
+
+			setUserData(prev => ({
+				...prev!,
+				hourlyWage: updatedProfile.hourlyWage || 0,
+			}))
+
+			setIsWageModalOpen(false)
+			setHourlyWageInput('')
+			toast.success('Soatlik ish haqqi yangilandi!')
+		} catch (error) {
+			console.error('Error updating wage:', error)
+			toast.error('Ish haqqini yangilashda xatolik yuz berdi')
+		} finally {
+			setUpdatingWage(false)
+		}
+	}, [hourlyWageInput])
+
+	// Modal ochilganda joriy qiymatni ko'rsatish
+	const handleOpenWageModal = useCallback(() => {
+		setHourlyWageInput(userData?.hourlyWage?.toString() || '')
+		setIsWageModalOpen(true)
+	}, [userData?.hourlyWage])
 
 	// Oylar ro'yxati
 	const months = useMemo(
@@ -667,7 +951,7 @@ export default function DashboardPage() {
 					</Card>
 
 					{/* Statistika */}
-					<div className='grid grid-cols-1 sm:grid-cols-3 gap-3'>
+					<div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3'>
 						<Card className='bg-[#0E1422] border-none text-white p-4'>
 							<div className='flex items-center gap-3'>
 								<div className='bg-[#4E7BEE]/10 p-3 rounded-lg'>
@@ -709,15 +993,102 @@ export default function DashboardPage() {
 								</div>
 							</div>
 						</Card>
+
+						<Card
+							className='bg-[#0E1422] border-none text-white p-4 cursor-pointer hover:bg-[#1A1F2E] transition-colors'
+							onClick={handleOpenWageModal}
+						>
+							<div className='flex items-center gap-3'>
+								<div className='bg-[#10B981]/10 p-3 rounded-lg'>
+									<span className='text-2xl'>💰</span>
+								</div>
+								<div className='flex-1'>
+									<p className='text-gray-400 text-sm'>Total Earnings</p>
+									{userData?.hourlyWage && userData.hourlyWage > 0 ? (
+										<>
+											<p className='text-xl font-semibold text-[#10B981]'>
+												{formatKRW(totalEarnings)}
+											</p>
+											<p className='text-xs text-gray-500 mt-1'>
+												{userData.hourlyWage.toLocaleString('ko-KR')} KRW/hour
+											</p>
+										</>
+									) : (
+										<p className='text-sm text-gray-500 mt-1'>
+											Soatlik ish haqqini kiriting
+										</p>
+									)}
+								</div>
+								<Pencil className='w-4 h-4 text-gray-400' />
+							</div>
+						</Card>
 					</div>
 
 					{/* Vaqt kiritish formasi */}
 					<Card className='bg-[#0E1422] border-none text-white'>
 						<div className='p-4 sm:p-6'>
-							<h2 className='text-base sm:text-xl mb-4 flex items-center gap-2'>
-								<FileText className='w-5 h-5 text-[#4E7BEE]' />
-								Add New Time Entry
-							</h2>
+							<div className='flex items-center justify-between mb-4'>
+								<h2 className='text-base sm:text-xl flex items-center gap-2'>
+									<FileText className='w-5 h-5 text-[#4E7BEE]' />
+									Add New Time Entry
+								</h2>
+								{speechSupported && (
+									<Button
+										type='button'
+										onClick={
+											isListening
+												? stopSpeechRecognition
+												: startSpeechRecognition
+										}
+										className={`flex items-center gap-2 ${
+											isListening
+												? 'bg-red-500 hover:bg-red-600 animate-pulse'
+												: 'bg-[#4CC4C0] hover:bg-[#4CC4C0]/90'
+										} text-white transition-all duration-300`}
+										disabled={loading || logoutLoading}
+									>
+										{isListening ? (
+											<>
+												<MicOff className='w-4 h-4' />
+												Stop
+											</>
+										) : (
+											<>
+												<Mic className='w-4 h-4' />
+												Voice
+											</>
+										)}
+									</Button>
+								)}
+							</div>
+
+							{/* Voice Instructions */}
+							{speechSupported && (
+								<div className='mb-4 p-3 bg-[#1A1F2E] rounded-lg border border-[#4CC4C0]/20'>
+									<div className='flex items-center gap-2 mb-2'>
+										<Mic className='w-4 h-4 text-[#4CC4C0]' />
+										<p className='text-sm font-medium text-[#4CC4C0]'>
+											Voice Commands
+										</p>
+									</div>
+									<p className='text-xs text-gray-400 space-y-1'>
+										<span className='block'>
+											Try saying:{' '}
+											<span className='text-[#4CC4C0] font-medium'>
+												&quot;worked from 9 AM to 6 PM&quot;
+											</span>
+										</span>
+										<span className='block'>
+											Or:{' '}
+											<span className='text-[#4CC4C0] font-medium'>
+												&quot;start 9 end 6&quot;
+											</span>{' '}
+											(assumes 9 AM to 6 PM)
+										</span>
+									</p>
+								</div>
+							)}
+
 							<form onSubmit={handleSubmit} className='space-y-4'>
 								<fieldset disabled={logoutLoading} className='space-y-4'>
 									<div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
@@ -1119,6 +1490,75 @@ export default function DashboardPage() {
 					entry={editingEntry}
 					onUpdate={handleEntryUpdate}
 				/>
+
+				{/* Soatlik Ish Haqqi Modal */}
+				<Dialog open={isWageModalOpen} onOpenChange={setIsWageModalOpen}>
+					<DialogContent className='bg-[#1A1F2E] border border-[#4E7BEE] text-white'>
+						<DialogHeader>
+							<DialogTitle className='text-lg font-semibold flex items-center gap-2'>
+								<span className='text-2xl'>💰</span>
+								Soatlik Ish Haqqi (KRW)
+							</DialogTitle>
+							<DialogDescription className='text-gray-400'>
+								Koreya wonida soatlik ish haqqingizni kiriting
+							</DialogDescription>
+						</DialogHeader>
+						<div className='space-y-4 mt-4'>
+							<div className='space-y-2'>
+								<Label className='text-sm text-gray-300'>
+									Soatlik Ish Haqqi
+								</Label>
+								<Input
+									type='number'
+									min='0'
+									step='100'
+									value={hourlyWageInput}
+									onChange={e => setHourlyWageInput(e.target.value)}
+									placeholder='Masalan: 10000'
+									className='bg-[#0E1422] border-[#4E7BEE]/40 text-white placeholder:text-gray-500 focus:border-[#4E7BEE]'
+									onKeyPress={e => {
+										if (e.key === 'Enter') {
+											handleUpdateWage()
+										}
+									}}
+								/>
+								<p className='text-xs text-gray-500'>
+									Joriy qiymat:{' '}
+									{userData?.hourlyWage
+										? `${userData.hourlyWage.toLocaleString('ko-KR')} KRW`
+										: 'Kiritilmagan'}
+								</p>
+							</div>
+							<div className='flex justify-end gap-2 pt-2'>
+								<Button
+									variant='outline'
+									onClick={() => {
+										setIsWageModalOpen(false)
+										setHourlyWageInput('')
+									}}
+									className='border-[#4E7BEE]/40 text-gray-300 hover:bg-[#0E1422]'
+									disabled={updatingWage}
+								>
+									Bekor qilish
+								</Button>
+								<Button
+									onClick={handleUpdateWage}
+									className='bg-[#4E7BEE] hover:bg-[#4E7BEE]/90 text-white'
+									disabled={updatingWage}
+								>
+									{updatingWage ? (
+										<>
+											<div className='animate-spin rounded-full h-4 w-4 border-2 border-white/20 border-t-white mr-2'></div>
+											Saqlanmoqda...
+										</>
+									) : (
+										'Saqlash'
+									)}
+								</Button>
+							</div>
+						</div>
+					</DialogContent>
+				</Dialog>
 			</div>
 		</main>
 	)
