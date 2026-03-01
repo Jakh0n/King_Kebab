@@ -1,7 +1,8 @@
 const express = require('express')
 const router = express.Router()
 const Branch = require('../models/Branch')
-const { adminAuth } = require('../middleware/auth')
+const { auth, adminAuth } = require('../middleware/auth')
+const { haversineDistanceMeters } = require('../utils/geo')
 
 // Get all branches (admin only)
 router.get('/', adminAuth, async (req, res) => {
@@ -18,6 +19,52 @@ router.get('/', adminAuth, async (req, res) => {
 	} catch (error) {
 		console.error('Get branches error:', error)
 		res.status(500).json({ message: 'Error fetching branches' })
+	}
+})
+
+const DEFAULT_CHECK_IN_RADIUS_METERS = 150
+
+// Get branches near coordinates (auth required, for check-in)
+router.get('/nearby', auth, async (req, res) => {
+	try {
+		const lat = parseFloat(req.query.lat)
+		const lng = parseFloat(req.query.lng)
+		const radiusMeters = parseInt(req.query.radiusMeters, 10) || DEFAULT_CHECK_IN_RADIUS_METERS
+
+		if (Number.isNaN(lat) || Number.isNaN(lng)) {
+			return res.status(400).json({ message: 'lat and lng are required' })
+		}
+		if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+			return res.status(400).json({ message: 'Invalid coordinates' })
+		}
+
+		const branches = await Branch.find({
+			isActive: true,
+			'location.coordinates.latitude': { $exists: true, $ne: null },
+			'location.coordinates.longitude': { $exists: true, $ne: null },
+		}).select('name code location checkInRadiusMeters')
+
+		const withDistance = branches
+			.map((b) => {
+				const branchLat = b.location.coordinates.latitude
+				const branchLng = b.location.coordinates.longitude
+				const radius = b.checkInRadiusMeters || DEFAULT_CHECK_IN_RADIUS_METERS
+				const distance = haversineDistanceMeters(lat, lng, branchLat, branchLng)
+				if (distance > radius) return null
+				return {
+					_id: b._id,
+					name: b.name,
+					code: b.code,
+					distance: Math.round(distance),
+				}
+			})
+			.filter(Boolean)
+			.sort((a, b) => a.distance - b.distance)
+
+		res.json(withDistance)
+	} catch (error) {
+		console.error('Get nearby branches error:', error)
+		res.status(500).json({ message: 'Error fetching nearby branches' })
 	}
 })
 
@@ -52,6 +99,7 @@ router.post('/', adminAuth, async (req, res) => {
 			capacity,
 			requirements,
 			notes,
+			checkInRadiusMeters,
 		} = req.body
 
 		// Validate required fields
@@ -84,6 +132,7 @@ router.post('/', adminAuth, async (req, res) => {
 			capacity,
 			requirements,
 			notes,
+			...(checkInRadiusMeters != null && { checkInRadiusMeters }),
 		})
 
 		await branch.save()
@@ -117,6 +166,7 @@ router.put('/:id', adminAuth, async (req, res) => {
 			requirements,
 			notes,
 			isActive,
+			checkInRadiusMeters,
 		} = req.body
 
 		const branch = await Branch.findById(req.params.id)
@@ -158,6 +208,8 @@ router.put('/:id', adminAuth, async (req, res) => {
 			branch.requirements = { ...branch.requirements, ...requirements }
 		if (notes !== undefined) branch.notes = notes
 		if (isActive !== undefined) branch.isActive = isActive
+		if (checkInRadiusMeters !== undefined)
+			branch.checkInRadiusMeters = checkInRadiusMeters
 
 		await branch.save()
 

@@ -125,6 +125,12 @@ const branchSchema = new mongoose.Schema(
 				},
 			],
 		},
+		checkInRadiusMeters: {
+			type: Number,
+			default: 150,
+			min: 50,
+			max: 500,
+		},
 		isActive: {
 			type: Boolean,
 			default: true,

@@ -26,6 +26,7 @@ import {
 	getMyTimeEntries,
 	logout,
 } from '@/lib/api'
+import { CheckInOutCard } from './_components/CheckInOutCard'
 import { notifyTimeEntry } from '@/lib/telegramNotifications'
 import { TimeEntry, TimeEntryFormData } from '@/types'
 import {
@@ -590,9 +591,10 @@ export default function DashboardPage() {
 	// }
 
 	// Tanlangan oyning vaqtlarini filterlash va statistikani hisoblash
+	// Faqat check-out qilingan (yopilgan) yozuvlar — ochiq check-in ro‘yxatda ko‘rinmasin
 	const { filteredEntries, stats, totalPages } = useMemo(() => {
-		// Avval barcha yozuvlarni filterlash
 		const allFilteredEntries = entries
+			.filter(entry => entry.endTime != null)
 			.filter(entry => {
 				const entryDate = new Date(entry.date)
 				return (
@@ -667,6 +669,7 @@ export default function DashboardPage() {
 		>()
 
 		recentEntries.forEach(entry => {
+			if (!entry.endTime) return
 			const startTime = new Date(entry.startTime)
 			const endTime = new Date(entry.endTime)
 
@@ -810,6 +813,9 @@ export default function DashboardPage() {
 				</Dialog>
 				<Toaster richColors position='top-right' theme='dark' />
 				<div className='max-w-4xl mx-auto space-y-3 sm:space-y-6'>
+					{/* Branch check-in / check-out */}
+					<CheckInOutCard onCheckIn={loadEntries} onCheckOut={loadEntries} />
+
 					{/* Header */}
 					<div className='flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-4 bg-[#0E1422] p-3 sm:p-4 rounded-lg'>
 						<div className='flex items-center gap-4'>
@@ -1397,6 +1403,7 @@ export default function DashboardPage() {
 																		onClick={() => handleEditEntry(entry)}
 																		disabled={
 																			logoutLoading ||
+																			!entry.endTime ||
 																			Math.ceil(
 																				Math.abs(
 																					new Date().getTime() -
@@ -1423,7 +1430,7 @@ export default function DashboardPage() {
 																		variant='ghost'
 																		onClick={() => handleDelete(entry._id)}
 																		className='hover:bg-[#2A3447] text-red-500 hover:text-red-600 h-8 w-8'
-																		disabled={logoutLoading}
+																		disabled={logoutLoading || !entry.endTime}
 																	>
 																		<Trash2 className='w-4 h-4' />
 																	</Button>
@@ -1445,7 +1452,9 @@ export default function DashboardPage() {
 																	<div className='flex items-center justify-between'>
 																		<p className='font-medium text-[#4CC4C0]'>
 																			{formatTime(entry.startTime)} -{' '}
-																			{formatTime(entry.endTime)}
+																			{entry.endTime
+																				? formatTime(entry.endTime)
+																				: 'Open'}
 																		</p>
 																		<p className='text-[#4E7BEE] font-medium'>
 																			{entry.hours.toFixed(1)} hours

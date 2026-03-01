@@ -4,6 +4,7 @@ import {
 	AuthResponse,
 	Branch,
 	BranchFormData,
+	BranchNearby,
 	Schedule,
 	ScheduleConflict,
 	ScheduleFormData,
@@ -12,7 +13,7 @@ import {
 	User,
 	WeeklyScheduleData,
 } from '@/types'
-import Cookies from 'js-cookie'
+import { clearAuth, getLoginPath, getToken, setAuth } from './authStorage'
 
 // Determine API URL based on environment
 const getApiUrl = () => {
@@ -51,6 +52,11 @@ async function handleResponse<T>(response: Response): Promise<T> {
 	}
 
 	if (!response.ok) {
+		if (response.status === 401 && typeof window !== 'undefined') {
+			clearAuth()
+			localStorage.clear()
+			window.location.href = getLoginPath()
+		}
 		const errorMessage =
 			(data as ApiError).message ||
 			`HTTP ${response.status}: ${response.statusText}`
@@ -74,12 +80,7 @@ export async function login(
 		body: JSON.stringify({ username, password }),
 	})
 	const data = await handleResponse<AuthResponse>(response)
-
-	// Token va position ni localStorage va cookie ga saqlash
-	localStorage.setItem('token', data.token)
-	localStorage.setItem('position', data.position)
-	Cookies.set('token', data.token, { expires: 1 }) // 1 kunlik cookie
-
+	setAuth({ token: data.token, position: data.position })
 	return data
 }
 
@@ -105,20 +106,18 @@ export async function register(
 		}),
 	})
 	const data = await handleResponse<AuthResponse>(response)
-
-	// Token va position ni localStorage va cookie ga saqlash
-	localStorage.setItem('token', data.token)
-	localStorage.setItem('position', data.position)
-	localStorage.setItem('employeeId', data.employeeId)
-	Cookies.set('token', data.token, { expires: 1 }) // 1 kunlik cookie
-
+	setAuth({
+		token: data.token,
+		position: data.position,
+		employeeId: data.employeeId,
+	})
 	return data
 }
 
 export async function addTimeEntry(
 	data: TimeEntryFormData
 ): Promise<TimeEntry> {
-	const token = localStorage.getItem('token')
+	const token = getToken()
 	if (!token) throw new Error('Not authenticated')
 
 	// Ma'lumotlarni tekshirish
@@ -150,7 +149,7 @@ export async function addTimeEntry(
 }
 
 export async function getMyTimeEntries(): Promise<TimeEntry[]> {
-	const token = localStorage.getItem('token')
+	const token = getToken()
 	if (!token) throw new Error('Not authenticated')
 
 	const response = await fetch(`${API_URL}/time/my-entries`, {
@@ -162,7 +161,7 @@ export async function getMyTimeEntries(): Promise<TimeEntry[]> {
 }
 
 export async function getAllTimeEntries(): Promise<TimeEntry[]> {
-	const token = localStorage.getItem('token')
+	const token = getToken()
 	if (!token) throw new Error('Not authenticated')
 
 	const response = await fetch(`${API_URL}/time/all`, {
@@ -178,7 +177,7 @@ export async function downloadWorkerPDF(
 	month: number,
 	year: number
 ) {
-	const token = localStorage.getItem('token')
+	const token = getToken()
 	if (!token) throw new Error('No token found')
 
 	const response = await fetch(
@@ -218,7 +217,7 @@ export async function downloadWorkerPDF(
 }
 
 export async function downloadMyPDF(month: number, year: number) {
-	const token = localStorage.getItem('token')
+	const token = getToken()
 	if (!token) throw new Error('No token found')
 
 	const response = await fetch(`${API_URL}/time/my-pdf/${month}/${year}`, {
@@ -255,7 +254,7 @@ export async function downloadMyPDF(month: number, year: number) {
 }
 
 export async function deleteTimeEntry(entryId: string): Promise<void> {
-	const token = localStorage.getItem('token')
+	const token = getToken()
 	if (!token) throw new Error('No token found')
 
 	const response = await fetch(`${API_URL}/time/${entryId}`, {
@@ -274,7 +273,7 @@ export async function updateTimeEntry(
 	id: string,
 	data: TimeEntryFormData
 ): Promise<TimeEntry> {
-	const token = localStorage.getItem('token')
+	const token = getToken()
 	if (!token) throw new Error('Not authenticated')
 
 	// Ma'lumotlarni tekshirish
@@ -302,11 +301,9 @@ export async function updateTimeEntry(
 	return handleResponse<TimeEntry>(response)
 }
 
-// Logout funksiyasini qo'shamiz
 export function logout() {
-	localStorage.clear() // Barcha localStorage ma'lumotlarini tozalash
-	Cookies.remove('token')
-	sessionStorage.clear() // SessionStorage'ni ham tozalash
+	clearAuth()
+	localStorage.clear()
 }
 
 export async function registerWorker(data: {
@@ -319,7 +316,7 @@ export async function registerWorker(data: {
 	// Avval barcha storage'larni tozalash
 	logout()
 
-	const token = localStorage.getItem('token')
+	const token = getToken()
 	if (!token) throw new Error('Not authenticated')
 
 	const response = await fetch(`${API_URL}/auth/register`, {
@@ -336,7 +333,7 @@ export async function registerWorker(data: {
 
 // Announcements
 export async function getAnnouncements(): Promise<Announcement[]> {
-	const token = localStorage.getItem('token')
+	const token = getToken()
 	if (!token) throw new Error('Not authenticated')
 
 	const response = await fetch(`${API_URL}/announcements`, {
@@ -357,7 +354,7 @@ export async function createAnnouncement(data: {
 	content: string
 	type: 'info' | 'warning' | 'success'
 }): Promise<Announcement> {
-	const token = localStorage.getItem('token')
+	const token = getToken()
 	if (!token) throw new Error('Not authenticated')
 
 	const response = await fetch(`${API_URL}/announcements`, {
@@ -385,7 +382,7 @@ export async function updateAnnouncement(
 		isActive: boolean
 	}
 ): Promise<Announcement> {
-	const token = localStorage.getItem('token')
+	const token = getToken()
 	if (!token) throw new Error('Not authenticated')
 
 	const response = await fetch(`${API_URL}/announcements/${id}`, {
@@ -405,7 +402,7 @@ export async function updateAnnouncement(
 }
 
 export async function deleteAnnouncement(id: string): Promise<void> {
-	const token = localStorage.getItem('token')
+	const token = getToken()
 	if (!token) throw new Error('Not authenticated')
 
 	const response = await fetch(`${API_URL}/announcements/${id}`, {
@@ -423,7 +420,7 @@ export async function deleteAnnouncement(id: string): Promise<void> {
 
 // Profile API functions
 export async function getUserProfile(): Promise<User> {
-	const token = localStorage.getItem('token')
+	const token = getToken()
 	if (!token) throw new Error('Not authenticated')
 
 	const response = await fetch(`${API_URL}/profile`, {
@@ -463,7 +460,7 @@ export async function updateUserProfile(data: {
 		relationship: string
 	}
 }): Promise<User> {
-	const token = localStorage.getItem('token')
+	const token = getToken()
 	if (!token) throw new Error('Not authenticated')
 
 	const response = await fetch(`${API_URL}/profile`, {
@@ -482,7 +479,7 @@ export async function uploadProfileImage(file: File): Promise<{
 	imageUrl: string
 	user: User
 }> {
-	const token = localStorage.getItem('token')
+	const token = getToken()
 	if (!token) throw new Error('Not authenticated')
 
 	const formData = new FormData()
@@ -519,7 +516,7 @@ export async function uploadProfileImage(file: File): Promise<{
 export async function getAllBranches(
 	includeInactive = false
 ): Promise<Branch[]> {
-	const token = localStorage.getItem('token')
+	const token = getToken()
 	if (!token) throw new Error('Not authenticated')
 
 	const params = new URLSearchParams()
@@ -535,7 +532,7 @@ export async function getAllBranches(
 }
 
 export async function getBranch(id: string): Promise<Branch> {
-	const token = localStorage.getItem('token')
+	const token = getToken()
 	if (!token) throw new Error('Not authenticated')
 
 	const response = await fetch(`${API_URL}/branches/${id}`, {
@@ -550,7 +547,7 @@ export async function getBranch(id: string): Promise<Branch> {
 export async function createBranch(
 	data: BranchFormData
 ): Promise<{ message: string; branch: Branch }> {
-	const token = localStorage.getItem('token')
+	const token = getToken()
 	if (!token) throw new Error('Not authenticated')
 
 	if (
@@ -577,7 +574,7 @@ export async function updateBranch(
 	id: string,
 	data: BranchFormData
 ): Promise<{ message: string; branch: Branch }> {
-	const token = localStorage.getItem('token')
+	const token = getToken()
 	if (!token) throw new Error('Not authenticated')
 
 	const response = await fetch(`${API_URL}/branches/${id}`, {
@@ -592,7 +589,7 @@ export async function updateBranch(
 }
 
 export async function deleteBranch(id: string): Promise<{ message: string }> {
-	const token = localStorage.getItem('token')
+	const token = getToken()
 	if (!token) throw new Error('Not authenticated')
 
 	const response = await fetch(`${API_URL}/branches/${id}`, {
@@ -611,8 +608,56 @@ export async function getActiveBranches(): Promise<Branch[]> {
 	return handleResponse<Branch[]>(response)
 }
 
+export async function getBranchesNearby(
+	lat: number,
+	lng: number,
+	radiusMeters?: number
+): Promise<BranchNearby[]> {
+	const token = getToken()
+	if (!token) throw new Error('Not authenticated')
+	const params = new URLSearchParams({ lat: String(lat), lng: String(lng) })
+	if (radiusMeters != null) params.set('radiusMeters', String(radiusMeters))
+	const response = await fetch(`${API_URL}/branches/nearby?${params}`, {
+		headers: { Authorization: `Bearer ${token}` },
+	})
+	return handleResponse<BranchNearby[]>(response)
+}
+
+export async function getOpenTimeEntry(): Promise<TimeEntry | null> {
+	const token = getToken()
+	if (!token) throw new Error('Not authenticated')
+	const response = await fetch(`${API_URL}/time/open-entry`, {
+		headers: { Authorization: `Bearer ${token}` },
+	})
+	return handleResponse<TimeEntry | null>(response)
+}
+
+export async function checkIn(branchId: string, lat: number, lng: number): Promise<TimeEntry> {
+	const token = getToken()
+	if (!token) throw new Error('Not authenticated')
+	const response = await fetch(`${API_URL}/time/check-in`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			Authorization: `Bearer ${token}`,
+		},
+		body: JSON.stringify({ branchId, lat, lng }),
+	})
+	return handleResponse<TimeEntry>(response)
+}
+
+export async function checkOut(): Promise<TimeEntry> {
+	const token = getToken()
+	if (!token) throw new Error('Not authenticated')
+	const response = await fetch(`${API_URL}/time/check-out`, {
+		method: 'POST',
+		headers: { Authorization: `Bearer ${token}` },
+	})
+	return handleResponse<TimeEntry>(response)
+}
+
 export async function getAllUsers(): Promise<User[]> {
-	const token = localStorage.getItem('token')
+	const token = getToken()
 	if (!token) throw new Error('Not authenticated')
 
 	const response = await fetch(`${API_URL}/users`, {
@@ -646,7 +691,7 @@ export async function getSchedules(params: {
 		pages: number
 	}
 }> {
-	const token = localStorage.getItem('token')
+	const token = getToken()
 	if (!token) throw new Error('Not authenticated')
 
 	const searchParams = new URLSearchParams()
@@ -674,7 +719,7 @@ export async function getSchedules(params: {
 }
 
 export async function getSchedule(id: string): Promise<Schedule> {
-	const token = localStorage.getItem('token')
+	const token = getToken()
 	if (!token) throw new Error('Not authenticated')
 
 	const response = await fetch(`${API_URL}/schedules/${id}`, {
@@ -689,7 +734,7 @@ export async function getSchedule(id: string): Promise<Schedule> {
 export async function createSchedule(
 	data: ScheduleFormData
 ): Promise<{ message: string; schedule: Schedule; recurringCount?: number }> {
-	const token = localStorage.getItem('token')
+	const token = getToken()
 	if (!token) throw new Error('Not authenticated')
 
 	if (
@@ -727,7 +772,7 @@ export async function updateSchedule(
 	id: string,
 	data: Partial<ScheduleFormData>
 ): Promise<{ message: string; schedule: Schedule }> {
-	const token = localStorage.getItem('token')
+	const token = getToken()
 	if (!token) throw new Error('Not authenticated')
 
 	const response = await fetch(`${API_URL}/schedules/${id}`, {
@@ -742,7 +787,7 @@ export async function updateSchedule(
 }
 
 export async function deleteSchedule(id: string): Promise<{ message: string }> {
-	const token = localStorage.getItem('token')
+	const token = getToken()
 	if (!token) throw new Error('Not authenticated')
 
 	const response = await fetch(`${API_URL}/schedules/${id}`, {
@@ -757,7 +802,7 @@ export async function deleteSchedule(id: string): Promise<{ message: string }> {
 export async function confirmSchedule(
 	id: string
 ): Promise<{ message: string; schedule: Schedule }> {
-	const token = localStorage.getItem('token')
+	const token = getToken()
 	if (!token) throw new Error('Not authenticated')
 
 	const response = await fetch(`${API_URL}/schedules/${id}/confirm`, {
@@ -779,7 +824,7 @@ export async function checkScheduleConflicts(params: {
 	hasConflicts: boolean
 	conflicts: ScheduleConflict[]
 }> {
-	const token = localStorage.getItem('token')
+	const token = getToken()
 	if (!token) throw new Error('Not authenticated')
 
 	const searchParams = new URLSearchParams()
@@ -810,7 +855,7 @@ export async function getWeeklySchedule(
 	branchId?: string,
 	shiftType?: string
 ): Promise<WeeklyScheduleData> {
-	const token = localStorage.getItem('token')
+	const token = getToken()
 	if (!token) throw new Error('Not authenticated')
 
 	const params = new URLSearchParams()

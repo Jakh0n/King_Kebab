@@ -7,6 +7,11 @@ const timeEntrySchema = new mongoose.Schema(
 			ref: 'User',
 			required: true,
 		},
+		branch: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'Branch',
+			required: false,
+		},
 		date: {
 			type: Date,
 			required: true,
@@ -18,7 +23,8 @@ const timeEntrySchema = new mongoose.Schema(
 		},
 		endTime: {
 			type: Date,
-			required: true,
+			required: false,
+			default: null,
 		},
 		hours: {
 			type: Number,
@@ -55,30 +61,27 @@ const timeEntrySchema = new mongoose.Schema(
 // 3 oydan eski ma'lumotlarni o'chirish uchun TTL indeksi
 timeEntrySchema.index({ date: 1 }, { expireAfterSeconds: 7776000 }) // 90 kun = 7776000 sekund
 
-// Automatically calculate hours
+// Automatically calculate hours when endTime is set
 timeEntrySchema.pre('save', function (next) {
+	if (!this.endTime) {
+		this.hours = 0
+		return next()
+	}
 	const start = new Date(this.startTime)
 	const end = new Date(this.endTime)
-
-	// Get hours
 	const startHour = start.getHours()
 	const endHour = end.getHours()
 	const startMinutes = start.getMinutes()
 	const endMinutes = end.getMinutes()
-
 	let workHours
 	if (
 		endHour < startHour ||
 		(endHour === startHour && endMinutes < startMinutes)
 	) {
-		// If end time is less than start time (e.g., 21:00 - 09:00)
-		workHours = 24 - startHour + endHour
-		workHours = workHours + (endMinutes - startMinutes) / 60
+		workHours = 24 - startHour + endHour + (endMinutes - startMinutes) / 60
 	} else {
-		// Normal case (e.g., 09:00 - 17:00)
 		workHours = endHour - startHour + (endMinutes - startMinutes) / 60
 	}
-
 	this.hours = Number(workHours.toFixed(1))
 	next()
 })

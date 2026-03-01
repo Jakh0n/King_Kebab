@@ -1,9 +1,12 @@
 const express = require('express')
 const TimeEntry = require('../models/TimeEntry')
+const Branch = require('../models/Branch')
 const { auth, adminAuth } = require('../middleware/auth')
+const { haversineDistanceMeters } = require('../utils/geo')
 const PDFDocument = require('pdfkit')
-// Telegram service removed - notifications handled by frontend
 const router = express.Router()
+
+const DEFAULT_CHECK_IN_RADIUS_METERS = 150
 
 // Months list in English
 const months = [
@@ -75,11 +78,129 @@ router.get('/my-entries', auth, async (req, res) => {
 				select: '_id username position',
 				model: 'User',
 			})
+			.populate({ path: 'branch', select: 'name code' })
 			.sort({ date: -1 })
 		res.json(timeEntries)
 	} catch (error) {
 		console.error('Error fetching time entries:', error)
 		res.status(500).json({ message: 'Error loading time entries' })
+	}
+})
+
+// Get current open check-in (no check-out yet)
+router.get('/open-entry', auth, async (req, res) => {
+	try {
+		const todayStart = new Date()
+		todayStart.setHours(0, 0, 0, 0)
+		const todayEnd = new Date()
+		todayEnd.setHours(23, 59, 59, 999)
+		const open = await TimeEntry.findOne({
+			user: req.user._id,
+			endTime: null,
+			date: { $gte: todayStart, $lte: todayEnd },
+		})
+			.populate('branch', 'name code')
+			.populate('user', 'username position employeeId')
+		if (!open) return res.json(null)
+		res.json(open)
+	} catch (error) {
+		console.error('Error fetching open entry:', error)
+		res.status(500).json({ message: 'Error loading open entry' })
+	}
+})
+
+// Check-in at branch (GPS-verified)
+router.post('/check-in', auth, async (req, res) => {
+	try {
+		const { branchId, lat, lng } = req.body
+		if (!branchId) {
+			return res.status(400).json({ message: 'branchId is required' })
+		}
+		const latNum = parseFloat(lat)
+		const lngNum = parseFloat(lng)
+		if (Number.isNaN(latNum) || Number.isNaN(lngNum)) {
+			return res.status(400).json({ message: 'lat and lng are required' })
+		}
+
+		const todayStart = new Date()
+		todayStart.setHours(0, 0, 0, 0)
+		const todayEnd = new Date()
+		todayEnd.setHours(23, 59, 59, 999)
+		const existingOpen = await TimeEntry.findOne({
+			user: req.user._id,
+			endTime: null,
+			date: { $gte: todayStart, $lte: todayEnd },
+		})
+		if (existingOpen) {
+			return res.status(400).json({
+				message: 'You already have an open check-in. Please check out first.',
+			})
+		}
+
+		const branch = await Branch.findById(branchId)
+		if (!branch || !branch.isActive) {
+			return res.status(404).json({ message: 'Branch not found' })
+		}
+		const branchLat = branch.location?.coordinates?.latitude
+		const branchLng = branch.location?.coordinates?.longitude
+		if (branchLat == null || branchLng == null) {
+			return res.status(400).json({ message: 'Branch has no coordinates set' })
+		}
+		const radius = branch.checkInRadiusMeters || DEFAULT_CHECK_IN_RADIUS_METERS
+		const distance = haversineDistanceMeters(latNum, lngNum, branchLat, branchLng)
+		if (distance > radius) {
+			return res.status(400).json({
+				message: 'You are not near this branch. Please be within the check-in area.',
+			})
+		}
+
+		const now = new Date()
+		const dateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+		const entry = new TimeEntry({
+			user: req.user._id,
+			branch: branchId,
+			date: dateOnly,
+			startTime: now,
+			endTime: null,
+			hours: 0,
+			position: req.user.position,
+			employeeId: req.user.employeeId || undefined,
+		})
+		await entry.save()
+		await entry.populate('branch', 'name code')
+		await entry.populate('user', 'username position employeeId')
+		res.status(201).json(entry)
+	} catch (error) {
+		console.error('Check-in error:', error)
+		res.status(500).json({ message: 'Error during check-in' })
+	}
+})
+
+// Check-out (close current open entry)
+router.post('/check-out', auth, async (req, res) => {
+	try {
+		const todayStart = new Date()
+		todayStart.setHours(0, 0, 0, 0)
+		const todayEnd = new Date()
+		todayEnd.setHours(23, 59, 59, 999)
+		const open = await TimeEntry.findOne({
+			user: req.user._id,
+			endTime: null,
+			date: { $gte: todayStart, $lte: todayEnd },
+		})
+		if (!open) {
+			return res.status(400).json({
+				message: 'No open check-in found. Check in first.',
+			})
+		}
+		open.endTime = new Date()
+		await open.save()
+		await open.populate('branch', 'name code')
+		await open.populate('user', 'username position employeeId')
+		res.json(open)
+	} catch (error) {
+		console.error('Check-out error:', error)
+		res.status(500).json({ message: 'Error during check-out' })
 	}
 })
 
@@ -91,6 +212,7 @@ router.get('/all', adminAuth, async (req, res) => {
 				path: 'user',
 				select: '_id username position employeeId',
 			})
+			.populate({ path: 'branch', select: 'name code' })
 			.sort({ date: -1 })
 
 		res.json(timeEntries)

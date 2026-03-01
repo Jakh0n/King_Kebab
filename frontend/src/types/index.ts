@@ -25,11 +25,19 @@ export interface User {
 	updatedAt?: string
 }
 
+export interface BranchNearby {
+	_id: string
+	name: string
+	code: string
+	distance: number
+}
+
 export interface TimeEntry {
 	_id: string
 	user: User
+	branch?: Branch | { _id: string; name: string; code: string }
 	startTime: string
-	endTime: string
+	endTime: string | null
 	hours: number
 	date: string
 	position: string
@@ -119,6 +127,7 @@ export interface Branch {
 			'cooking' | 'cashier' | 'cleaning' | 'management' | 'delivery'
 		>
 	}
+	checkInRadiusMeters?: number
 	isActive: boolean
 	notes?: string
 	createdAt: string
@@ -178,6 +187,7 @@ export interface BranchFormData {
 			longitude: number
 		}
 	}
+	checkInRadiusMeters?: number
 	contact?: {
 		phone?: string
 		email?: string
