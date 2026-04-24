@@ -65,10 +65,7 @@ app.use("/api/users", strictLimiter);
 // MongoDB connection with retry logic
 const connectWithRetry = () => {
   mongoose
-    .connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    })
+    .connect(process.env.MONGODB_URI)
     .then(() => {
       console.log("MongoDB connected successfully");
     })
