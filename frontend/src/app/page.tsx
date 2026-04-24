@@ -20,7 +20,7 @@ export default function HomePage() {
         <h1 className="text-balance text-4xl font-semibold tracking-tight sm:text-5xl">
           Time Management,
           <br />
-          <span className="text-primary">simplified</span>
+          <span className="text-primary">simplified.</span>
         </h1>
 
         <p className="mt-5 max-w-md text-balance text-base text-muted-foreground sm:text-lg">
