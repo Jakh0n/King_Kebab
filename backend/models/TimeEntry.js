@@ -10,7 +10,6 @@ const timeEntrySchema = new mongoose.Schema(
 		date: {
 			type: Date,
 			required: true,
-			index: true,
 		},
 		startTime: {
 			type: Date,
@@ -36,13 +35,19 @@ const timeEntrySchema = new mongoose.Schema(
 		},
 		overtimeReason: {
 			type: String,
-			enum: ['Busy', 'Last Order', 'Company Request', 'Late Arrival', null],
+			enum: {
+				values: ['Busy', 'Last Order', 'Company Request', 'Late Arrival'],
+				message: 'Invalid overtime reason',
+			},
 			default: null,
 		},
 		responsiblePerson: {
 			type: String,
-			enum: ['Adilcan', 'Boss', ''],
-			default: '',
+			enum: {
+				values: ['Adilcan', 'Boss'],
+				message: 'Invalid responsible person',
+			},
+			default: undefined,
 		},
 		latePerson: {
 			type: String,
@@ -56,11 +61,11 @@ const timeEntrySchema = new mongoose.Schema(
 timeEntrySchema.index({ date: 1 }, { expireAfterSeconds: 7776000 }) // 90 kun = 7776000 sekund
 
 // Automatically calculate hours
-timeEntrySchema.pre('save', function (next) {
+// Mongoose 9 removed the `next` callback in middleware — hooks must be sync or async.
+timeEntrySchema.pre('save', function () {
 	const start = new Date(this.startTime)
 	const end = new Date(this.endTime)
 
-	// Get hours
 	const startHour = start.getHours()
 	const endHour = end.getHours()
 	const startMinutes = start.getMinutes()
@@ -71,16 +76,13 @@ timeEntrySchema.pre('save', function (next) {
 		endHour < startHour ||
 		(endHour === startHour && endMinutes < startMinutes)
 	) {
-		// If end time is less than start time (e.g., 21:00 - 09:00)
 		workHours = 24 - startHour + endHour
 		workHours = workHours + (endMinutes - startMinutes) / 60
 	} else {
-		// Normal case (e.g., 09:00 - 17:00)
 		workHours = endHour - startHour + (endMinutes - startMinutes) / 60
 	}
 
 	this.hours = Number(workHours.toFixed(1))
-	next()
 })
 
 const TimeEntry = mongoose.model('TimeEntry', timeEntrySchema)

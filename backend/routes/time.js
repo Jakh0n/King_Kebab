@@ -48,7 +48,7 @@ router.post('/', auth, async (req, res) => {
 			position: req.user.position,
 			employeeId: employeeId || req.user.employeeId,
 			overtimeReason: overtimeReason || null,
-			responsiblePerson: responsiblePerson || '',
+			responsiblePerson: responsiblePerson || undefined,
 			latePerson: latePerson || '',
 		})
 
@@ -62,7 +62,18 @@ router.post('/', auth, async (req, res) => {
 		res.status(201).json(timeEntry)
 	} catch (error) {
 		console.error('Error adding time entry:', error)
-		res.status(500).json({ message: 'Error adding time entry' })
+		res.status(500).json({
+			message: 'Error adding time entry',
+			error: error.message,
+			name: error.name,
+			errors: error.errors
+				? Object.keys(error.errors).map(k => ({
+					field: k,
+					message: error.errors[k].message,
+					kind: error.errors[k].kind,
+				}))
+				: undefined,
+		})
 	}
 })
 
@@ -593,7 +604,7 @@ router.put('/:id', auth, async (req, res) => {
 		timeEntry.endTime = endTime
 		timeEntry.date = date
 		timeEntry.overtimeReason = overtimeReason || null
-		timeEntry.responsiblePerson = responsiblePerson || ''
+		timeEntry.responsiblePerson = responsiblePerson || undefined
 		timeEntry.latePerson = latePerson || ''
 
 		await timeEntry.save()
