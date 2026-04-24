@@ -11,12 +11,31 @@ module.exports = {
 	theme: {
 		container: {
 			center: true,
-			padding: '2rem',
+			padding: '1.5rem',
 			screens: {
-				'2xl': '1400px',
+				'2xl': '1280px',
 			},
 		},
 		extend: {
+			fontFamily: {
+				sans: [
+					'-apple-system',
+					'BlinkMacSystemFont',
+					'"SF Pro Display"',
+					'"SF Pro Text"',
+					'"Inter"',
+					'system-ui',
+					'sans-serif',
+				],
+				mono: [
+					'"SF Mono"',
+					'ui-monospace',
+					'Menlo',
+					'Monaco',
+					'Consolas',
+					'monospace',
+				],
+			},
 			colors: {
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
@@ -34,6 +53,14 @@ module.exports = {
 				destructive: {
 					DEFAULT: 'hsl(var(--destructive))',
 					foreground: 'hsl(var(--destructive-foreground))',
+				},
+				success: {
+					DEFAULT: 'hsl(var(--success))',
+					foreground: 'hsl(var(--success-foreground))',
+				},
+				warning: {
+					DEFAULT: 'hsl(var(--warning))',
+					foreground: 'hsl(var(--warning-foreground))',
 				},
 				muted: {
 					DEFAULT: 'hsl(var(--muted))',
@@ -56,6 +83,11 @@ module.exports = {
 				lg: 'var(--radius)',
 				md: 'calc(var(--radius) - 2px)',
 				sm: 'calc(var(--radius) - 4px)',
+			},
+			boxShadow: {
+				card: '0 1px 2px 0 rgb(0 0 0 / 0.04), 0 1px 1px 0 rgb(0 0 0 / 0.02)',
+				'card-hover':
+					'0 4px 12px -2px rgb(0 0 0 / 0.06), 0 2px 4px -1px rgb(0 0 0 / 0.04)',
 			},
 			keyframes: {
 				'accordion-down': {

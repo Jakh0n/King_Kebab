@@ -1,130 +1,147 @@
-"use client";
+'use client'
 
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Calendar, CalendarDays } from "lucide-react";
+import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '@/components/ui/select'
+import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface MonthOption {
-  value: number;
-  label: string;
+	value: number
+	label: string
 }
 
 interface MonthYearFilterProps {
-  selectedMonth: number;
-  selectedYear: number;
-  setSelectedMonth: (v: number) => void;
-  setSelectedYear: (v: number) => void;
-  currentPage: number;
-  setCurrentPage: (v: number | ((prev: number) => number)) => void;
-  totalPages: number;
-  months: readonly MonthOption[];
-  loading: boolean;
-  logoutLoading: boolean;
+	selectedMonth: number
+	selectedYear: number
+	setSelectedMonth: (v: number) => void
+	setSelectedYear: (v: number) => void
+	setCurrentPage: (v: number | ((prev: number) => number)) => void
+	months: readonly MonthOption[]
+	loading: boolean
+	logoutLoading: boolean
 }
 
-const YEARS = [2025, 2026];
+const YEARS = [2025, 2026] as const
 
 export function MonthYearFilter({
-  selectedMonth,
-  selectedYear,
-  setSelectedMonth,
-  setSelectedYear,
-  currentPage,
-  setCurrentPage,
-  totalPages,
-  months,
-  logoutLoading,
+	selectedMonth,
+	selectedYear,
+	setSelectedMonth,
+	setSelectedYear,
+	setCurrentPage,
+	months,
+	logoutLoading,
 }: MonthYearFilterProps) {
-  return (
-    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-      <h2 className="text-base sm:text-xl flex items-center gap-2">
-        <CalendarDays className="w-5 h-5 text-[#4E7BEE]" />
-        My Time Entries
-      </h2>
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full sm:w-auto">
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <Label className="text-sm min-w-[50px] flex items-center gap-1.5">
-            <Calendar className="w-4 h-4 text-gray-400" />
-            Month:
-          </Label>
-          <select
-            value={selectedMonth}
-            onChange={(e) => {
-              setSelectedMonth(parseInt(e.target.value, 10));
-              setCurrentPage(1);
-            }}
-            className="flex-1 sm:flex-none bg-[#1A1F2E] border-none text-white rounded px-3 py-2 text-sm h-10 cursor-pointer min-w-[120px]"
-            disabled={logoutLoading}
-          >
-            {months.map((month) => (
-              <option key={month.value} value={month.value}>
-                {month.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <Label className="text-sm min-w-[50px] flex items-center gap-1.5">
-            <Calendar className="w-4 h-4 text-gray-400" />
-            Year:
-          </Label>
-          <select
-            value={selectedYear}
-            onChange={(e) => {
-              setSelectedYear(parseInt(e.target.value, 10));
-              setCurrentPage(1);
-            }}
-            className="flex-1 sm:flex-none bg-[#1A1F2E] border-none text-white rounded px-3 py-2 text-sm h-10 cursor-pointer min-w-[120px]"
-            disabled={logoutLoading}
-          >
-            {YEARS.map((year) => (
-              <option key={year} value={year}>
-                {year}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-    </div>
-  );
+	return (
+		<div className='mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+			<h2 className='flex items-center gap-2 text-base font-semibold sm:text-lg'>
+				<CalendarDays className='h-5 w-5 text-primary' />
+				Time entries
+			</h2>
+
+			<div className='flex flex-col items-stretch gap-2 sm:flex-row sm:items-center'>
+				<div className='flex items-center gap-2'>
+					<Label className='min-w-[48px] text-xs font-medium text-muted-foreground'>
+						Month
+					</Label>
+					<Select
+						value={String(selectedMonth)}
+						onValueChange={value => {
+							setSelectedMonth(parseInt(value, 10))
+							setCurrentPage(1)
+						}}
+						disabled={logoutLoading}
+					>
+						<SelectTrigger className='h-9 w-full rounded-full sm:w-[160px]'>
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{months.map(month => (
+								<SelectItem key={month.value} value={String(month.value)}>
+									{month.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</div>
+
+				<div className='flex items-center gap-2'>
+					<Label className='min-w-[48px] text-xs font-medium text-muted-foreground'>
+						Year
+					</Label>
+					<Select
+						value={String(selectedYear)}
+						onValueChange={value => {
+							setSelectedYear(parseInt(value, 10))
+							setCurrentPage(1)
+						}}
+						disabled={logoutLoading}
+					>
+						<SelectTrigger className='h-9 w-full rounded-full sm:w-[120px]'>
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{YEARS.map(year => (
+								<SelectItem key={year} value={String(year)}>
+									{year}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</div>
+			</div>
+		</div>
+	)
+}
+
+interface MonthYearPaginationProps {
+	currentPage: number
+	setCurrentPage: (v: number | ((prev: number) => number)) => void
+	totalPages: number
+	logoutLoading: boolean
 }
 
 export function MonthYearPagination({
-  currentPage,
-  setCurrentPage,
-  totalPages,
-  logoutLoading,
-}: {
-  currentPage: number;
-  setCurrentPage: (v: number | ((prev: number) => number)) => void;
-  totalPages: number;
-  logoutLoading: boolean;
-}) {
-  if (totalPages <= 1) return null;
+	currentPage,
+	setCurrentPage,
+	totalPages,
+	logoutLoading,
+}: MonthYearPaginationProps) {
+	if (totalPages <= 1) return null
 
-  return (
-    <div className="flex items-center justify-center gap-2">
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-        disabled={currentPage === 1 || logoutLoading}
-        className="bg-[#1A1F2E] border-none text-white hover:bg-[#2A3447] cursor-pointer"
-      >
-        Previous
-      </Button>
-      <span className="text-sm text-gray-400">
-        Page {currentPage} of {totalPages}
-      </span>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setCurrentPage((prev) => prev + 1)}
-        disabled={currentPage >= totalPages || logoutLoading}
-        className="bg-[#1A1F2E] border-none text-white hover:bg-[#2A3447] cursor-pointer"
-      >
-        Next
-      </Button>
-    </div>
-  );
+	return (
+		<div className='flex items-center justify-center gap-2'>
+			<Button
+				variant='outline'
+				size='sm'
+				className='rounded-full'
+				onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+				disabled={currentPage === 1 || logoutLoading}
+				aria-label='Previous page'
+			>
+				<ChevronLeft className='h-4 w-4' />
+				Previous
+			</Button>
+			<span className='min-w-[96px] text-center text-sm text-muted-foreground'>
+				Page {currentPage} of {totalPages}
+			</span>
+			<Button
+				variant='outline'
+				size='sm'
+				className='rounded-full'
+				onClick={() => setCurrentPage(prev => prev + 1)}
+				disabled={currentPage >= totalPages || logoutLoading}
+				aria-label='Next page'
+			>
+				Next
+				<ChevronRight className='h-4 w-4' />
+			</Button>
+		</div>
+	)
 }

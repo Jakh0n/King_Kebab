@@ -1,185 +1,164 @@
 'use client'
 
+import { AuthShell } from '@/components/auth/AuthShell'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { cn } from '@/lib/utils'
 import { register } from '@/lib/api'
 import { Loader2 } from 'lucide-react'
-import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChangeEvent, FormEvent, useState } from 'react'
+import { FormEvent, useState } from 'react'
 import { toast } from 'sonner'
 
+type Position = 'worker' | 'rider' | 'monthly'
+
+const POSITIONS: { value: Position; label: string }[] = [
+	{ value: 'worker', label: 'Worker' },
+	{ value: 'rider', label: 'Rider' },
+	{ value: 'monthly', label: 'Monthly' },
+]
+
 export default function RegisterPage() {
+	const router = useRouter()
 	const [username, setUsername] = useState('')
 	const [password, setPassword] = useState('')
 	const [employeeId, setEmployeeId] = useState('')
-	const [position, setPosition] = useState<'worker' | 'rider' | 'monthly'>(
-		'worker'
-	)
+	const [position, setPosition] = useState<Position>('worker')
 	const [error, setError] = useState('')
 	const [isLoading, setIsLoading] = useState(false)
-	const router = useRouter()
 
-	async function handleSubmit(e: FormEvent<HTMLFormElement>) {
-		e.preventDefault()
+	async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+		event.preventDefault()
 		setIsLoading(true)
+		setError('')
+
 		try {
 			const response = await register(username, password, position, employeeId)
 			localStorage.setItem('token', response.token)
 			localStorage.setItem('position', response.position)
 			localStorage.setItem('employeeId', response.employeeId)
 
-			// Muvaffaqiyatli registratsiya uchun toast
-			toast.success('Successfully registered!', {
-				description: `Welcome to King Kebab, ${username}!`,
-				duration: 3000,
+			toast.success('Account created', {
+				description: `Welcome, ${username}`,
 			})
-
 			router.push('/dashboard')
 		} catch (err) {
-			setError(err instanceof Error ? err.message : 'Registration failed')
-			// Xatolik uchun toast
-			toast.error('Registration failed', {
-				description:
-					err instanceof Error ? err.message : 'Something went wrong',
-				duration: 3000,
-			})
+			const message = err instanceof Error ? err.message : 'Registration failed'
+			setError(message)
+			toast.error('Registration failed', { description: message })
 		} finally {
 			setIsLoading(false)
 		}
 	}
 
 	return (
-		<main className='flex min-h-screen items-center justify-center p-4 bg-gray-50'>
-			<Card className='w-full max-w-md'>
-				<CardHeader>
-					<Image
-						src='/image.png'
-						alt='King Kebab Logo'
-						className='w-24 h-24 object-contain mb-4 mx-auto'
-						width={100}
-						height={100}
+		<AuthShell
+			title='Create account'
+			subtitle='Join the King Kebab team portal.'
+			footer={
+				<>
+					Already have an account?{' '}
+					<Link href='/login' className='font-medium text-primary hover:underline'>
+						Sign in
+					</Link>
+				</>
+			}
+		>
+			<form onSubmit={handleSubmit} className='space-y-5'>
+				<div className='space-y-2'>
+					<Label htmlFor='username'>Username</Label>
+					<Input
+						id='username'
+						autoComplete='username'
+						placeholder='Choose a username'
+						value={username}
+						onChange={e => setUsername(e.target.value)}
+						disabled={isLoading}
+						required
 					/>
-					<CardTitle className='text-2xl text-center'>Register</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<form onSubmit={handleSubmit} className='space-y-4'>
-						<div className='space-y-2'>
-							<Label htmlFor='username'>Username</Label>
-							<Input
-								id='username'
-								placeholder='Enter username'
-								value={username}
-								onChange={(e: ChangeEvent<HTMLInputElement>) =>
-									setUsername(e.target.value)
-								}
-								required
-								disabled={isLoading}
-							/>
-						</div>
-						<div className='space-y-2'>
-							<Label htmlFor='password'>Password</Label>
-							<Input
-								id='password'
-								type='password'
-								placeholder='Enter password'
-								value={password}
-								onChange={(e: ChangeEvent<HTMLInputElement>) =>
-									setPassword(e.target.value)
-								}
-								required
-								disabled={isLoading}
-							/>
-						</div>
-						<div className='space-y-2'>
-							<Label htmlFor='employeeId'>Employee ID</Label>
-							<Input
-								id='employeeId'
-								placeholder='Enter employee ID'
-								value={employeeId}
-								onChange={(e: ChangeEvent<HTMLInputElement>) =>
-									setEmployeeId(e.target.value)
-								}
-								required
-								disabled={isLoading}
-							/>
-						</div>
-						<div className='space-y-2'>
-							<Label>Position</Label>
-							<div className='flex space-x-4'>
-								<label className='flex items-center space-x-2'>
-									<input
-										type='radio'
-										name='position'
-										value='worker'
-										checked={position === 'worker'}
-										onChange={e =>
-											setPosition(
-												e.target.value as 'worker' | 'rider' | 'monthly'
-											)
-										}
-										className='form-radio'
-										disabled={isLoading}
-									/>
-									<span>Worker</span>
-								</label>
-								<label className='flex items-center space-x-2'>
-									<input
-										type='radio'
-										name='position'
-										value='rider'
-										checked={position === 'rider'}
-										onChange={e =>
-											setPosition(
-												e.target.value as 'worker' | 'rider' | 'monthly'
-											)
-										}
-										className='form-radio'
-										disabled={isLoading}
-									/>
-									<span>Rider</span>
-								</label>
-								<label className='flex items-center space-x-2'>
-									<input
-										type='radio'
-										name='position'
-										value='monthly'
-										checked={position === 'monthly'}
-										onChange={e =>
-											setPosition(
-												e.target.value as 'worker' | 'rider' | 'monthly'
-											)
-										}
-										className='form-radio'
-										disabled={isLoading}
-									/>
-									<span>Monthly</span>
-								</label>
-							</div>
-						</div>
-						{error && <p className='text-red-500 text-sm'>{error}</p>}
-						<Button type='submit' className='w-full' disabled={isLoading}>
-							{isLoading ? (
-								<>
-									<Loader2 className='mr-2 h-4 w-4 animate-spin' />
-									Registering...
-								</>
-							) : (
-								'Register'
-							)}
-						</Button>
-						<p className='text-center text-sm text-gray-500'>
-							Already have an account?{' '}
-							<Link href='/login' className='text-blue-600 hover:underline'>
-								Login
-							</Link>
-						</p>
-					</form>
-				</CardContent>
-			</Card>
-		</main>
+				</div>
+
+				<div className='space-y-2'>
+					<Label htmlFor='password'>Password</Label>
+					<Input
+						id='password'
+						type='password'
+						autoComplete='new-password'
+						placeholder='At least 6 characters'
+						value={password}
+						onChange={e => setPassword(e.target.value)}
+						disabled={isLoading}
+						required
+						minLength={6}
+					/>
+				</div>
+
+				<div className='space-y-2'>
+					<Label htmlFor='employeeId'>Employee ID</Label>
+					<Input
+						id='employeeId'
+						placeholder='Your employee ID'
+						value={employeeId}
+						onChange={e => setEmployeeId(e.target.value)}
+						disabled={isLoading}
+						required
+					/>
+				</div>
+
+				<div className='space-y-2'>
+					<Label>Position</Label>
+					<div
+						role='radiogroup'
+						className='grid grid-cols-3 gap-2 rounded-xl bg-muted p-1'
+					>
+						{POSITIONS.map(option => {
+							const selected = position === option.value
+							return (
+								<button
+									key={option.value}
+									type='button'
+									role='radio'
+									aria-checked={selected}
+									onClick={() => setPosition(option.value)}
+									disabled={isLoading}
+									className={cn(
+										'h-9 rounded-lg text-sm font-medium transition-colors',
+										selected
+											? 'bg-card text-foreground shadow-card'
+											: 'text-muted-foreground hover:text-foreground'
+									)}
+								>
+									{option.label}
+								</button>
+							)
+						})}
+					</div>
+				</div>
+
+				{error && (
+					<p className='text-sm text-destructive' role='alert'>
+						{error}
+					</p>
+				)}
+
+				<Button
+					type='submit'
+					className='w-full rounded-full'
+					size='lg'
+					disabled={isLoading}
+				>
+					{isLoading ? (
+						<>
+							<Loader2 className='h-4 w-4 animate-spin' />
+							Creating…
+						</>
+					) : (
+						'Create account'
+					)}
+				</Button>
+			</form>
+		</AuthShell>
 	)
 }
